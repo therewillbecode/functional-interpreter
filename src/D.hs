@@ -1,5 +1,15 @@
 module D where
 {-
+
+data langError = TypeError || ....
+
+instance Error
+
+eval :: VarMap -> Expr -> Either LangError Int 
+eval mem exp@(Add _ _) = validate *> add exp
+
+validate :: Expr -> Either LangError ()
+
 -- Not part of the exercise
 data Type
   = IntegerType

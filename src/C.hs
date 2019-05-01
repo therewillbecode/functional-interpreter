@@ -5,7 +5,7 @@ import Data.Map.Lazy (Map)
 
 -- Step 3:
 data Exp
-  = Number Integer
+  = Number Int
   | Variable String
   | Add Exp
         Exp
@@ -21,7 +21,7 @@ data Exp
   deriving (Show)
 
 data Value
-  = NumVal Integer
+  = NumVal Int
   | FunVal (String -> Value)
 
 instance Show Value where
