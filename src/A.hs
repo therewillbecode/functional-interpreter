@@ -32,9 +32,12 @@ data VarBinding =
              Int
   deriving (Show)
 
-eval :: Map String Int -> Exp -> StateT Memory (Except Err) Int
-eval mem exp@(Add a b) = add a b
-eval mem exp@(Mul a b) = mul a b
+eval :: Exp -> StateT Memory (Except Err) Int
+eval exp@(Add a b) = add a b
+eval exp@(Mul a b) = mul a b
+
+emptyMemory :: Memory
+emptyMemory = Memory M.empty
 
 lookupVarBinding :: String -> StateT Memory (Except Err) Int
 lookupVarBinding name = do
