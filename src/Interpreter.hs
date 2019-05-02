@@ -11,7 +11,6 @@ import Data.Maybe
 
 import Prelude
 
--- Step 1:
 data Exp
   = Number Int
   | Variable String
@@ -19,6 +18,9 @@ data Exp
         Exp
   | Mul Exp
         Exp
+  | Let String
+        Exp
+        Exp -- let name = exp in exp
   deriving (Show)
 
 type Err = String
@@ -29,11 +31,11 @@ data LangErr = {
       divBy0 String Expr
       typeMismatch String Expr
       NotFunction String String
+      varAlreadyBound
 
 instance Error LangError 
 
 showError :: LangErr ->  String 
-
 
 }
 -}
@@ -61,6 +63,12 @@ lookupVarBinding name = do
     Nothing -> throwError ("Unbound Variable: " ++ name)
   where
     mem = M.fromList [("x", 42), ("y", 23)]
+
+bindVar :: String -> Exp -> StateT Memory (Except Err) VarBinding
+bindVar name exp = do
+  val <- eval exp
+  modify (\(Memory m) -> Memory $ M.insert name val m)
+  return $ VarBinding name val
 
 getBindingVal :: VarBinding -> Int
 getBindingVal (VarBinding _ val) = val
