@@ -7,8 +7,9 @@ import Control.Monad.Except
 import Control.Monad.State
 
 import Data.Either
-import Interpreter
 import Prelude
+
+import Interpreter
 
 main :: IO ()
 main = hspec step1 >> hspec step2
