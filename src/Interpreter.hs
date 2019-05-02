@@ -49,8 +49,11 @@ data VarBinding =
   deriving (Show)
 
 eval :: Exp -> StateT Memory (Except Err) Int
-eval exp@(Add a b) = add a b
-eval exp@(Mul a b) = mul a b
+eval (Number n) = return n
+eval (Variable name) = lookupVarBinding name
+eval (Add a b) = add a b
+eval (Mul a b) = mul a b
+eval (Let varName varExp exp) = bindVar varName varExp >> eval exp
 
 emptyMemory :: Memory
 emptyMemory = Memory M.empty

@@ -11,4 +11,4 @@ import Interpreter
 main :: IO ()
 main = print $ runExcept $ evalStateT (eval expr) emptyMemory
   where
-    expr = Add (Variable "x") (Number 5)
+    expr = Let "x" (Number 2) (Add (Variable "x") (Number 5))
