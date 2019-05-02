@@ -6,7 +6,7 @@ import Control.Monad.State
 import qualified Data.Map.Lazy as M
 import Data.Map.Lazy (Map)
 
-import A
+import Interpreter
 
 main :: IO ()
 main = print $ runExcept $ evalStateT (eval expr) emptyMemory

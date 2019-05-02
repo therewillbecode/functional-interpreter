@@ -7,12 +7,11 @@ import Control.Monad.Except
 import Control.Monad.State
 
 import Data.Either
+import Interpreter
 import Prelude
 
-import A
-
 main :: IO ()
-main = hspec $ step1 -- >> step2
+main = hspec step1 -- >> step2
 
 step1 =
   describe "Step 1" $
