@@ -11,20 +11,20 @@ import Interpreter
 import Prelude
 
 main :: IO ()
-main = hspec step1 -- >> step2
+main = hspec step1 >> hspec step2
 
 step1 =
   describe "Step 1" $
-  it "Eval can add two variables in memory" $
-  runExcept $ evalStateT (eval expr) memory `shouldBe` Right 65
+  it "Eval can read bound variables" $
+  runExcept (evalStateT (eval expr) memory) `shouldBe` Right 65
   where
     memory = Memory $ M.fromList [("x", 42), ("y", 23)]
     expr = Add (Variable "x") (Variable "y")
---step2 =
---  describe "Step 2" $ 
---    it "Eval can add variable in memory and a constant" $
---      eval varMap expr `shouldBe` 65
---  where
---    varMap = M.empty
---    expr = Let "x" 42 (Add (Variable x) (Number 23))
---
+
+step2 =
+  describe "Step 2" $
+  it "Eval can bind variables" $
+  runExcept (evalStateT (eval expr) emptyMemory) `shouldBe`
+  (Right 65 :: Either Err Int)
+  where
+    expr = Let "x" (Number 42) (Add (Variable "x") (Number 23))
