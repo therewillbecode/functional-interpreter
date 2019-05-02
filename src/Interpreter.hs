@@ -21,7 +21,19 @@ data Exp
   | Let String
         Exp
         Exp -- let name = exp in exp
+  | Funcall Exp
+            [Exp]
+  | Lambda String
+           Exp
   deriving (Show)
+
+data Value
+  = NumVal Integer
+  | FunVal (String -> Value)
+
+instance Show Value where
+  show (FunVal _) = "FunVal String -> Value"
+  show x = show x
 
 type Err = String
 
