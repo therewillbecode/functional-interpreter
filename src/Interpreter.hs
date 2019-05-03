@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+
 module Interpreter where
 
 import Control.Monad
@@ -21,14 +23,14 @@ data Exp
   | Let String
         Exp
         Exp -- let name = exp in exp
-  | Funcall Exp
+  | FunCall Exp
             [Exp]
   | Lambda String
            Exp
   deriving (Show)
 
 data Value
-  = NumVal Integer
+  = NumVal Int
   | FunVal (String -> Value)
 
 instance Show Value where
@@ -52,25 +54,36 @@ showError :: LangErr ->  String
 }
 -}
 newtype Memory =
-  Memory (Map String Int)
+  Memory (Map String Value)
   deriving (Show)
 
 data VarBinding =
   VarBinding String
-             Int
+             Value
   deriving (Show)
-
-eval :: Exp -> StateT Memory (Except Err) Int
-eval (Number n) = return n
-eval (Variable name) = lookupVarBinding name
-eval (Add a b) = add a b
-eval (Mul a b) = mul a b
-eval (Let varName varExp exp) = bindVar varName varExp >> eval exp
 
 emptyMemory :: Memory
 emptyMemory = Memory M.empty
 
-lookupVarBinding :: String -> StateT Memory (Except Err) Int
+eval :: Exp -> StateT Memory (Except Err) Value
+eval (Number n) = return $ NumVal n
+eval (Variable name) = lookupVarBinding name
+eval (Add a b) = binaryOp add a b
+eval (Mul a b) = binaryOp mul a b
+eval (Let varName varExp exp) = bindVar varName varExp >> eval exp
+eval (Lambda var body) = lookupVarBinding var >> eval body
+
+binaryOp ::
+     (Value -> Value -> Either Err Value)
+  -> Exp
+  -> Exp
+  -> StateT Memory (Except Err) Value
+binaryOp op a b = do
+  valA <- eval a
+  valB <- eval b
+  either throwError return (op valA valB)
+
+lookupVarBinding :: String -> StateT Memory (Except Err) Value
 lookupVarBinding name = do
   (Memory mem) <- get
   case M.lookup name mem of
@@ -85,29 +98,17 @@ bindVar name exp = do
   modify (\(Memory m) -> Memory $ M.insert name val m)
   return $ VarBinding name val
 
-getBindingVal :: VarBinding -> Int
+getBindingVal :: VarBinding -> Value
 getBindingVal (VarBinding _ val) = val
 
---lookupVarVal :: String -> StateT Memory (Except Err) (Either Err Int)
---lookupVarVal name = return $ (gets (lookupVarBinding name))
-binaryOp :: (Int -> Int -> Int) -> Exp -> Exp -> StateT Memory (Except Err) Int
-binaryOp op (Variable nameA) (Variable nameB) = do
-  a <- lookupVarBinding nameA
-  b <- lookupVarBinding nameB
-  return $ a `op` b
-binaryOp op (Variable nameA) (Number b) = do
-  a <- lookupVarBinding nameA
-  return $ a `op` b
-binaryOp op (Number a) (Variable nameB) = do
-  b <- lookupVarBinding nameB
-  return $ a `op` b
-binaryOp op (Number a) (Number b) = return $ a `op` b
+add :: Value -> Value -> Either Err Value
+add (NumVal a) (NumVal b) = Right $ NumVal $ a + b
+add _ _ = Left "typeError - Only NumVals can be added"
 
-add :: Exp -> Exp -> StateT Memory (Except Err) Int
-add = binaryOp (+)
-
-mul :: Exp -> Exp -> StateT Memory (Except Err) Int
-mul = binaryOp (*)
+mul :: Value -> Value -> Either Err Value
+mul (NumVal a) (NumVal b) = Right $ NumVal $ a * b
+mul _ _ = Left "typeError - Only NumVals can be multiplied"
+--Op (*) a b >>= \res -> return $ NumVal res
 -- test.hs
 -- import TomsCode
 -- let res = eval (Map.ofList [("x", 42), ("y", 23)]) (Add (Variable "x") (Variable "y")) -- 65

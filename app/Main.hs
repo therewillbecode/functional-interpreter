@@ -14,6 +14,6 @@ main = print $ runExcept $ evalStateT (eval expr) emptyMemory
     expr =
       Let
         "f"
-        (Lambda "x" (Add (Variable x) (Variable x)))
+        (Lambda "x" (Add (Variable "x") (Variable "x")))
         (FunCall (Variable "f") [Number 21])
      -- 42
