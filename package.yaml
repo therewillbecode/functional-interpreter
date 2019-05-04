@@ -1,10 +1,10 @@
-name:                ex-eval
+name:                functional-interpreter
 version:             0.1.0.0
-github:              "githubuser/ex-eval"
-license:             BSD3
-author:              "Author name here"
-maintainer:          "example@example.com"
-copyright:           "2019 Author name here"
+github:              "therewillbecode/functional-interpreter"
+license:             MIT
+author:              "Tom Chambrier"
+maintainer:          "tomw08@gmail.com"
+copyright:           "2019 Tom Chambrier"
 
 extra-source-files:
 - README.md
@@ -17,7 +17,7 @@ extra-source-files:
 # To avoid duplicated efforts in documentation and dealing with the
 # complications of embedding Haddock markup inside cabal files, it is
 # common to point users to the README.md file.
-description:         Please see the README on GitHub at <https://github.com/githubuser/ex-eval#readme>
+description:         Please see the README on GitHub at <https://github.com/therewillbecode/functional-interpreter#readme>
 
 dependencies:
 - base >= 4.7 && < 5
@@ -28,7 +28,7 @@ library:
   source-dirs: src
 
 executables:
-  ex-eval-exe:
+  functional-interpreter-exe:
     main:                Main.hs
     source-dirs:         app
     ghc-options:
@@ -36,10 +36,10 @@ executables:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - ex-eval
+    - functional-interpreter
 
 tests:
-  ex-eval-test:
+  functional-interpreter-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -47,5 +47,5 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - ex-eval
+    - functional-interpreter
     - hspec

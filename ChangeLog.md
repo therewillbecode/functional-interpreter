@@ -1,3 +1,3 @@
-# Changelog for ex-eval
+# Changelog for functional-interpreter
 
 ## Unreleased changes
