@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Interpreter where
 
@@ -10,6 +11,8 @@ import Data.Either
 import qualified Data.Map.Lazy as M
 import Data.Map.Lazy (Map)
 import Data.Maybe
+
+import Debug.Trace
 
 import Prelude
 
@@ -31,11 +34,11 @@ data Exp
 
 data Value
   = NumVal Int
-  | FunVal (String -> Value)
+  | FunVal (Exp -> StateT Memory (Except Err) Value)
 
 instance Show Value where
   show (FunVal _) = "FunVal String -> Value"
-  show x = show x
+  show (NumVal n) = show n
 
 type Err = String
 
@@ -64,14 +67,42 @@ data VarBinding =
 
 emptyMemory :: Memory
 emptyMemory = Memory M.empty
+ -- and that way, the change to the environment automatically only affects the evaluation of the body of the lambda, you don't have to reset the binding after
 
+-- use Reader instead of State and use local to update the map with local bindings since our langugae is pure
+-- So when evaluating an application, you'd use that local function to insert something into the Map of bound variables (r) while you evaluated the body of the lambda.
+{-
+% flip runReaderT [("x", 3)] do liftIO . print =<< asks (M.! "x"); local (M.insert "x" 42) do liftIO . print =<< asks (M.! "x");
+yahb
+Solonarv: 3; 42
+Solonarv
+% flip runReaderT [("x", 3)] do
+   liftIO . print =<< asks (M.! "x");
+    local (M.insert "x" 42) do 
+         liftIO . print =<< asks (M.! "x") 
+         liftIO . print =<< asks (M.! "x")
+Solonarv: 3; 42; 3
+-}
 eval :: Exp -> StateT Memory (Except Err) Value
 eval (Number n) = return $ NumVal n
 eval (Variable name) = lookupVarBinding name
 eval (Add a b) = binaryOp add a b
 eval (Mul a b) = binaryOp mul a b
 eval (Let varName varExp exp) = bindVar varName varExp >> eval exp
-eval (Lambda var body) = lookupVarBinding var >> eval body
+eval (Lambda paramName bodyExp) = defineLambda paramName bodyExp
+eval (FunCall funcName [arg]) = do
+  func <- eval funcName
+  apply func arg
+
+defineLambda :: String -> Exp -> StateT Memory (Except Err) Value
+defineLambda paramName body =
+  return $ FunVal $ \exp -> eval (Let paramName exp body)
+
+apply :: Value -> Exp -> StateT Memory (Except Err) Value
+apply (FunVal func) arg = func arg
+apply val _ =
+  throwError $
+  "TypeError - Not a function: \n" ++ show val ++ " is not a function"
 
 binaryOp ::
      (Value -> Value -> Either Err Value)
@@ -108,8 +139,3 @@ add _ _ = Left "typeError - Only NumVals can be added"
 mul :: Value -> Value -> Either Err Value
 mul (NumVal a) (NumVal b) = Right $ NumVal $ a * b
 mul _ _ = Left "typeError - Only NumVals can be multiplied"
---Op (*) a b >>= \res -> return $ NumVal res
--- test.hs
--- import TomsCode
--- let res = eval (Map.ofList [("x", 42), ("y", 23)]) (Add (Variable "x") (Variable "y")) -- 65
--- assert_eq res 65
