@@ -5,7 +5,7 @@ module Interpreter where
 
 import Control.Monad
 import Control.Monad.Except
-import Control.Monad.State
+import Control.Monad.Reader
 
 import Data.Either
 import qualified Data.Map.Lazy as M
@@ -34,7 +34,7 @@ data Exp
 
 data Value
   = NumVal Int
-  | FunVal (Exp -> StateT Memory (Except LangErr) Value)
+  | FunVal (Exp -> ReaderT Scope (Except LangErr) Value)
 
 instance Show Value where
   show (FunVal _) = "FunVal String -> Value"
@@ -72,8 +72,8 @@ showError :: LangErr ->  String
 
 }
 -}
-newtype Memory =
-  Memory (Map String Value)
+newtype Scope =
+  Scope (Map String Value)
   deriving (Show)
 
 data VarBinding =
@@ -81,8 +81,8 @@ data VarBinding =
              Value
   deriving (Show)
 
-emptyMemory :: Memory
-emptyMemory = Memory M.empty
+emptyScope :: Scope
+emptyScope = Scope M.empty
  -- and that way, the change to the environment automatically only affects the evaluation of the body of the lambda, you don't have to reset the binding after
 
 -- use Reader instead of State and use local to update the map with local bindings since our langugae is pure
@@ -99,22 +99,25 @@ Solonarv
          liftIO . print =<< asks (M.! "x")
 Solonarv: 3; 42; 3
 -}
-eval :: Exp -> StateT Memory (Except LangErr) Value
+eval :: Exp -> ReaderT Scope (Except LangErr) Value
 eval (Number n) = return $ NumVal n
 eval (Variable name) = lookupVarBinding name
 eval (Add a b) = binaryOp add a b
 eval (Mul a b) = binaryOp mul a b
-eval (Let varName varExp exp) = bindVar varName varExp >> eval exp
+eval (Let varName varExp exp) = do
+  val <- eval varExp
+  bindVar varName val
+  eval exp
 eval (Lambda paramName bodyExp) = defineLambda paramName bodyExp
 eval (FunCall funcName arg) = do
   func <- eval funcName
   apply func arg
 
-defineLambda :: String -> Exp -> StateT Memory (Except LangErr) Value
+defineLambda :: String -> Exp -> ReaderT Scope (Except LangErr) Value
 defineLambda paramName body =
   return $ FunVal $ \exp -> eval (Let paramName exp body)
 
-apply :: Value -> Exp -> StateT Memory (Except LangErr) Value
+apply :: Value -> Exp -> ReaderT Scope (Except LangErr) Value
 apply (FunVal func) arg = func arg
 apply val _ = throwError $ LangErr (TypeError ExpectedFunction) (pure val)
 
@@ -122,26 +125,36 @@ binaryOp ::
      (Value -> Value -> Either LangErr Value)
   -> Exp
   -> Exp
-  -> StateT Memory (Except LangErr) Value
+  -> ReaderT Scope (Except LangErr) Value
 binaryOp op a b = do
   valA <- eval a
   valB <- eval b
   either throwError return (op valA valB)
 
-lookupVarBinding :: String -> StateT Memory (Except LangErr) Value
+lookupVarBinding :: String -> ReaderT Scope (Except LangErr) Value
 lookupVarBinding name = do
-  (Memory mem) <- get
+  (Scope mem) <- ask
   case M.lookup name mem of
     (Just varBinding) -> return varBinding
     Nothing -> throwError $ LangErr (UnboundVar name) Nothing
-  where
-    mem = M.fromList [("x", 42), ("y", 23)]
+    {-
+    % flip runReaderT [("x", 3)] do liftIO . print =<< asks (M.! "x"); local (M.insert "x" 42) do liftIO . print =<< asks (M.! "x");
+yahb
+Solonarv: 3; 42
+Solonarv
+% flip runReaderT [("x", 3)] do
+   liftIO . print =<< asks (M.! "x");
+    local (M.insert "x" 42) do 
+         liftIO . print =<< asks (M.! "x") 
+         liftIO . print =<< asks (M.! "x")
+Solonarv: 3; 42; 3
+-}
 
-bindVar :: String -> Exp -> StateT Memory (Except LangErr) VarBinding
-bindVar name exp = do
-  val <- eval exp
-  modify (\(Memory m) -> Memory $ M.insert name val m)
-  return $ VarBinding name val
+bindVar :: String -> Value -> ReaderT Scope (Except LangErr) VarBinding
+bindVar name val =
+  local
+    (\(Scope m) -> Scope $ M.insert name val m)
+    (return $ VarBinding name val)
 
 getBindingVal :: VarBinding -> Value
 getBindingVal (VarBinding _ val) = val
