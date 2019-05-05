@@ -1,3 +1,6 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Interpreter where
@@ -29,13 +32,21 @@ data Exp
            Exp
   deriving (Show)
 
+newtype EvalM a = EvalM
+  { runEvalM :: Scope -> Either LangErr a
+  } deriving (Functor, Applicative, Monad, MonadReader Scope)
+
 data Value
   = NumVal Int
-  | FunVal (Exp -> ReaderT Scope (Except LangErr) Value)
+  | FunVal (Value -> ReaderT Scope (Except LangErr) Value)
 
 instance Show Value where
   show (FunVal _) = "FunVal String -> Value"
   show (NumVal n) = show n
+
+unNumVal :: Value -> Int
+unNumVal (NumVal n) = n
+unNumVal x = error (show x ++ " is not a NumVal")
 
 data LangErr =
   LangErr Err
@@ -67,21 +78,29 @@ eval (Number n) = return $ NumVal n
 eval (Variable name) = lookupVarBinding name
 eval (Add a b) = binaryOp add a b
 eval (Mul a b) = binaryOp mul a b
-eval (Let varName varExp exp) = do
-  val <- eval varExp
-  bindVar varName val (eval exp)
+eval (Let varName varExp body) = do
+  varVal <- eval varExp
+  bindVar varName varVal (eval body)
 eval (Lambda paramName bodyExp) = defineLambda paramName bodyExp
 eval (FunCall funcName arg) = do
   func <- eval funcName
   apply func arg
 
 defineLambda :: String -> Exp -> ReaderT Scope (Except LangErr) Value
-defineLambda paramName body =
-  return $ FunVal $ \exp -> eval (Let paramName exp body)
+defineLambda paramName body = do
+  currScope <- ask
+  return $ FunVal $ \val -> bindVar paramName val (eval body)
 
 apply :: Value -> Exp -> ReaderT Scope (Except LangErr) Value
-apply (FunVal func) arg = func arg
+apply (FunVal func) arg = eval arg >>= \a -> func a
 apply val _ = throwError $ LangErr (TypeError ExpectedFunction) (pure val)
+
+bindVar ::
+     String
+  -> Value
+  -> ReaderT Scope (Except LangErr) Value
+  -> ReaderT Scope (Except LangErr) Value
+bindVar name val = local (\(Scope m) -> Scope $ M.insert name val m)
 
 binaryOp ::
      (Value -> Value -> Either LangErr Value)
@@ -100,13 +119,6 @@ lookupVarBinding name = do
     (Just varBinding) -> return varBinding
     Nothing -> throwError $ LangErr (UnboundVar name) Nothing
 
-bindVar ::
-     String
-  -> Value
-  -> ReaderT Scope (Except LangErr) Value
-  -> ReaderT Scope (Except LangErr) Value
-bindVar name val = local (\(Scope m) -> Scope $ M.insert name val m)
-
 add :: Value -> Value -> Either LangErr Value
 add (NumVal a) (NumVal b) = Right $ NumVal $ a + b
 add a (NumVal _) = Left $ LangErr (TypeError ExpectedNumVal) (pure a)
@@ -116,3 +128,42 @@ mul :: Value -> Value -> Either LangErr Value
 mul (NumVal a) (NumVal b) = Right $ NumVal $ a * b
 mul a (NumVal _) = Left $ LangErr (TypeError ExpectedNumVal) (pure a)
 mul (NumVal _) b = Left $ LangErr (TypeError ExpectedNumVal) (pure b)
+
+primFunc ::
+     (Value -> Either LangErr Value)
+  -> Exp
+  -> ReaderT Scope (Except LangErr) Value
+primFunc f expA = do
+  valA <- eval expA
+  either throwError return (f valA)
+
+primFunc2 ::
+     (Value -> Value -> Either LangErr Value)
+  -> Exp
+  -> Exp
+  -> ReaderT Scope (Except LangErr) Value
+primFunc2 f expA expB = do
+  valA <- eval expA
+  primFunc (f valA) expB
+
+neg :: Exp -> ReaderT Scope (Except LangErr) Value
+neg =
+  primFunc
+    (\case
+       NumVal i -> Right $ NumVal $ negate i
+       a -> Left $ LangErr (TypeError ExpectedNumVal) (Just a))
+
+compose :: Value -> Value -> ReaderT Scope (Except LangErr) Value
+compose =
+  \case
+    a@(NumVal _) -> error $ show $ LangErr (TypeError ExpectedFunction) Nothing
+    FunVal f ->
+      \case
+        b@(NumVal _) ->
+          error $ show $ LangErr (TypeError ExpectedFunction) Nothing
+        FunVal g -> return $ FunVal (f >=> g)
+
+ifThenElse cond a b =
+  if cond
+    then a
+    else b
