@@ -82,6 +82,12 @@ emptyScope = Scope M.empty
 eval :: Exp -> ReaderT Scope (Except LangErr) Value
 eval (Number n) = return $ NumVal n
 eval (Variable name) = lookupVarBinding name
+eval (Boolean b) = return $ BoolVal b
+eval (IfThenElse cond a b) = do
+  condVal <- eval cond
+  tVal <- eval a
+  fVal <- eval b
+  return $ ifThenElse condVal tVal fVal
 eval (Add a b) = binaryOp add a b
 eval (Mul a b) = binaryOp mul a b
 eval (Let varName varExp body) = do
