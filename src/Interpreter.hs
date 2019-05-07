@@ -18,11 +18,15 @@ import Prelude
 
 data Exp
   = Number Int
+  | Boolean Bool
   | Variable String
   | Add Exp
         Exp
   | Mul Exp
         Exp
+  | IfThenElse Exp
+               Exp
+               Exp
   | Let String
         Exp
         Exp -- let name = exp in exp
@@ -65,6 +69,7 @@ data Err
 data TypeErr
   = ExpectedFunction
   | ExpectedNumVal
+  | ExpectedBoolVal
   deriving (Show)
 
 newtype Scope =
@@ -171,3 +176,4 @@ ifThenElse (BoolVal bool') a b =
   if bool'
     then a
     else b
+ifThenElse e _ _ = error $ show $ LangErr (TypeError ExpectedBoolVal) (pure e)
