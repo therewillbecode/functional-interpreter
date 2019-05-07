@@ -38,6 +38,7 @@ newtype EvalM a = EvalM
 
 data Value
   = NumVal Int
+  | BoolVal Bool
   | FunVal (Value -> ReaderT Scope (Except LangErr) Value)
 
 instance Show Value where
@@ -123,11 +124,13 @@ add :: Value -> Value -> Either LangErr Value
 add (NumVal a) (NumVal b) = Right $ NumVal $ a + b
 add a (NumVal _) = Left $ LangErr (TypeError ExpectedNumVal) (pure a)
 add (NumVal _) b = Left $ LangErr (TypeError ExpectedNumVal) (pure b)
+add _ _ = Left $ LangErr (TypeError ExpectedNumVal) Nothing
 
 mul :: Value -> Value -> Either LangErr Value
 mul (NumVal a) (NumVal b) = Right $ NumVal $ a * b
 mul a (NumVal _) = Left $ LangErr (TypeError ExpectedNumVal) (pure a)
 mul (NumVal _) b = Left $ LangErr (TypeError ExpectedNumVal) (pure b)
+mul _ _ = Left $ LangErr (TypeError ExpectedNumVal) Nothing
 
 primFunc ::
      (Value -> Either LangErr Value)
@@ -161,9 +164,10 @@ compose =
       \case
         b@(NumVal _) ->
           error $ show $ LangErr (TypeError ExpectedFunction) Nothing
-        FunVal g -> return $ FunVal (f >=> g)
+        FunVal g -> return $ FunVal (f <=< g)
 
-ifThenElse cond a b =
-  if cond
+ifThenElse :: Value -> Value -> Value -> Value
+ifThenElse (BoolVal bool') a b =
+  if bool'
     then a
     else b
