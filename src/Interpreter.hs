@@ -29,6 +29,7 @@ data Exp a where
   Or :: Exp Bool -> Exp Bool -> Exp Bool
   And :: Exp Bool -> Exp Bool -> Exp Bool
   Not :: Exp Bool -> Exp Bool
+  Eq :: Exp a -> Exp b -> Exp Bool
   Let :: String -> Exp a -> Exp b -> Exp c -- let name = exp in exp
   FunCall :: Exp String -> Exp a -> Exp b
   Lambda :: String -> Exp a -> Exp b
@@ -160,6 +161,10 @@ or' _ _ = Left $ LangErr (TypeError ExpectedBoolVal) Nothing
 not' :: Value -> Either LangErr Value
 not' (BoolVal a) = Right $ BoolVal $ not a
 not' _ = Left $ LangErr (TypeError ExpectedBoolVal) Nothing
+
+eq' :: Value -> Value -> Either LangErr Value
+eq' (BoolVal a) (BoolVal b) = Right $ BoolVal $ a == b
+eq' _ _ = Left $ LangErr (TypeError ExpectedBoolVal) Nothing
 
 primFunc ::
      (Value -> Either LangErr Value)
