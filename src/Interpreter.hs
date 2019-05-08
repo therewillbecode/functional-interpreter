@@ -31,8 +31,8 @@ data Exp a where
   Not :: Exp Bool -> Exp Bool
   Eq :: Exp a -> Exp b -> Exp Bool
   Let :: String -> Exp a -> Exp b -> Exp c -- let name = exp in exp
-  FunCall :: Exp String -> Exp a -> Exp b
-  Lambda :: String -> Exp a -> Exp b
+  FunCall :: Exp String -> Exp a -> Exp b -- not tyypesafe !!!
+  Lambda :: String -> Exp a -> Exp b -- not typesafe !!!
 
 deriving instance Show (Exp a)
 
