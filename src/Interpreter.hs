@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -29,8 +30,8 @@ data Exp a where
   And :: Exp Bool -> Exp Bool -> Exp Bool
   Not :: Exp Bool -> Exp Bool
   Let :: String -> Exp a -> Exp b -> Exp c -- let name = exp in exp
-  FunCall :: Exp String -> Exp a -> Exp a
-  Lambda :: String -> Exp a -> Exp a
+  FunCall :: Exp String -> Exp a -> Exp b
+  Lambda :: String -> Exp a -> Exp b
 
 deriving instance Show (Exp a)
 
@@ -200,3 +201,8 @@ ifThenElse (BoolVal bool') expA expB =
     then eval expA
     else eval expB
 ifThenElse e _ _ = throwError (LangErr (TypeError ExpectedBoolVal) (pure e))
+
+typeOf :: Value -> String
+typeOf (BoolVal _) = "BoolVal"
+typeOf (NumVal _) = "NumVal"
+typeOf _ = "FunVal"
