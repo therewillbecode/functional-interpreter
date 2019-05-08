@@ -34,10 +34,10 @@ data Exp a where
 
 deriving instance Show (Exp a)
 
-newtype EvalM a = EvalM
-  { runEvalM :: Scope -> Either LangErr a
-  } deriving (Functor, Applicative, Monad, MonadReader Scope)
-
+--
+--newtype EvalM a = EvalM
+--  { runEvalM :: Scope -> Either LangErr a
+--  } deriving (Functor, Applicative, Monad, MonadReader Scope)
 data Value
   = NumVal Int
   | BoolVal Bool
@@ -50,6 +50,10 @@ instance Show Value where
 unNumVal :: Value -> Int
 unNumVal (NumVal n) = n
 unNumVal x = error (show x ++ " is not a NumVal")
+
+unBoolVal :: Value -> Bool
+unBoolVal (BoolVal n) = n
+unBoolVal x = error (show x ++ " is not a BoolVal")
 
 data LangErr =
   LangErr Err
@@ -81,17 +85,11 @@ eval :: Exp a -> ReaderT Scope (Except LangErr) Value
 eval (Number n) = return $ NumVal n
 eval (Variable name) = lookupVarBinding name
 eval (Boolean b) = return $ BoolVal b
---eval (And a b) = do
---  bA <- eval a
---  bB <- eval b
---  return $ binaryOp (&&) a b
---eval (Or a b) = do
---  (BoolVal a) <- eval a
---  (BoolVal b) <- eval b
---  return $ BoolVal $ a || b
---eval (Not a) = do
---  (BoolVal a) <- eval a
---  return $ BoolVal $ not a
+eval (And a b) = binaryOp and' a b
+eval (Or a b) = binaryOp or' a b
+eval (Not a) = do
+  valA <- eval a
+  either throwError return (not' valA)
 eval (IfThenElse cond a b) = do
   condVal <- eval cond
   ifThenElse condVal a b
@@ -133,9 +131,9 @@ binaryOp op a b = do
 
 lookupVarBinding :: String -> ReaderT Scope (Except LangErr) Value
 lookupVarBinding name = do
-  (Scope mem) <- ask
+  Scope mem <- ask
   case M.lookup name mem of
-    (Just varBinding) -> return varBinding
+    Just varBinding -> return varBinding
     Nothing -> throwError $ LangErr (UnboundVar name) Nothing
 
 add :: Value -> Value -> Either LangErr Value
@@ -149,6 +147,18 @@ mul (NumVal a) (NumVal b) = Right $ NumVal $ a * b
 mul a (NumVal _) = Left $ LangErr (TypeError ExpectedNumVal) (pure a)
 mul (NumVal _) b = Left $ LangErr (TypeError ExpectedNumVal) (pure b)
 mul _ _ = Left $ LangErr (TypeError ExpectedNumVal) Nothing
+
+and' :: Value -> Value -> Either LangErr Value
+and' (BoolVal a) (BoolVal b) = Right $ BoolVal $ a && b
+and' _ _ = Left $ LangErr (TypeError ExpectedBoolVal) Nothing
+
+or' :: Value -> Value -> Either LangErr Value
+or' (BoolVal a) (BoolVal b) = Right $ BoolVal $ a || b
+or' _ _ = Left $ LangErr (TypeError ExpectedBoolVal) Nothing
+
+not' :: Value -> Either LangErr Value
+not' (BoolVal a) = Right $ BoolVal $ not a
+not' _ = Left $ LangErr (TypeError ExpectedBoolVal) Nothing
 
 primFunc ::
      (Value -> Either LangErr Value)
