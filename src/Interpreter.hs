@@ -1,7 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module Interpreter where
 
@@ -16,25 +18,21 @@ import Data.Maybe
 
 import Prelude
 
-data Exp
-  = Number Int
-  | Boolean Bool
-  | Variable String
-  | Add Exp
-        Exp
-  | Mul Exp
-        Exp
-  | IfThenElse Exp
-               Exp
-               Exp
-  | Let String
-        Exp
-        Exp -- let name = exp in exp
-  | FunCall Exp
-            Exp
-  | Lambda String
-           Exp
-  deriving (Show)
+data Exp a where
+  Number :: Int -> Exp Int
+  Boolean :: Bool -> Exp Bool
+  Variable :: String -> Exp a
+  Add :: Exp Int -> Exp Int -> Exp Int
+  Mul :: Exp Int -> Exp Int -> Exp Int
+  IfThenElse :: Exp Bool -> Exp a -> Exp a -> Exp a
+  Or :: Exp Bool -> Exp Bool -> Exp Bool
+  And :: Exp Bool -> Exp Bool -> Exp Bool
+  Not :: Exp Bool -> Exp Bool
+  Let :: String -> Exp a -> Exp b -> Exp c -- let name = exp in exp
+  FunCall :: Exp String -> Exp a -> Exp a
+  Lambda :: String -> Exp a -> Exp a
+
+deriving instance Show (Exp a)
 
 newtype EvalM a = EvalM
   { runEvalM :: Scope -> Either LangErr a
@@ -79,15 +77,24 @@ newtype Scope =
 emptyScope :: Scope
 emptyScope = Scope M.empty
 
-eval :: Exp -> ReaderT Scope (Except LangErr) Value
+eval :: Exp a -> ReaderT Scope (Except LangErr) Value
 eval (Number n) = return $ NumVal n
 eval (Variable name) = lookupVarBinding name
 eval (Boolean b) = return $ BoolVal b
+--eval (And a b) = do
+--  bA <- eval a
+--  bB <- eval b
+--  return $ binaryOp (&&) a b
+--eval (Or a b) = do
+--  (BoolVal a) <- eval a
+--  (BoolVal b) <- eval b
+--  return $ BoolVal $ a || b
+--eval (Not a) = do
+--  (BoolVal a) <- eval a
+--  return $ BoolVal $ not a
 eval (IfThenElse cond a b) = do
   condVal <- eval cond
-  tVal <- eval a
-  fVal <- eval b
-  return $ ifThenElse condVal tVal fVal
+  ifThenElse condVal a b
 eval (Add a b) = binaryOp add a b
 eval (Mul a b) = binaryOp mul a b
 eval (Let varName varExp body) = do
@@ -98,12 +105,12 @@ eval (FunCall funcName arg) = do
   func <- eval funcName
   apply func arg
 
-defineLambda :: String -> Exp -> ReaderT Scope (Except LangErr) Value
+defineLambda :: String -> Exp a -> ReaderT Scope (Except LangErr) Value
 defineLambda paramName body = do
   currScope <- ask
   return $ FunVal $ \val -> bindVar paramName val (eval body)
 
-apply :: Value -> Exp -> ReaderT Scope (Except LangErr) Value
+apply :: Value -> Exp a -> ReaderT Scope (Except LangErr) Value
 apply (FunVal func) arg = eval arg >>= \a -> func a
 apply val _ = throwError $ LangErr (TypeError ExpectedFunction) (pure val)
 
@@ -116,8 +123,8 @@ bindVar name val = local (\(Scope m) -> Scope $ M.insert name val m)
 
 binaryOp ::
      (Value -> Value -> Either LangErr Value)
-  -> Exp
-  -> Exp
+  -> Exp a
+  -> Exp a
   -> ReaderT Scope (Except LangErr) Value
 binaryOp op a b = do
   valA <- eval a
@@ -145,7 +152,7 @@ mul _ _ = Left $ LangErr (TypeError ExpectedNumVal) Nothing
 
 primFunc ::
      (Value -> Either LangErr Value)
-  -> Exp
+  -> Exp a
   -> ReaderT Scope (Except LangErr) Value
 primFunc f expA = do
   valA <- eval expA
@@ -153,14 +160,14 @@ primFunc f expA = do
 
 primFunc2 ::
      (Value -> Value -> Either LangErr Value)
-  -> Exp
-  -> Exp
+  -> Exp a
+  -> Exp a
   -> ReaderT Scope (Except LangErr) Value
 primFunc2 f expA expB = do
   valA <- eval expA
   primFunc (f valA) expB
 
-neg :: Exp -> ReaderT Scope (Except LangErr) Value
+neg :: Exp Int -> ReaderT Scope (Except LangErr) Value
 neg =
   primFunc
     (\case
@@ -177,9 +184,9 @@ compose =
           error $ show $ LangErr (TypeError ExpectedFunction) Nothing
         FunVal g -> return $ FunVal (f <=< g)
 
-ifThenElse :: Value -> Value -> Value -> Value
-ifThenElse (BoolVal bool') a b =
+ifThenElse :: Value -> Exp a -> Exp a -> ReaderT Scope (Except LangErr) Value
+ifThenElse (BoolVal bool') expA expB =
   if bool'
-    then a
-    else b
-ifThenElse e _ _ = error $ show $ LangErr (TypeError ExpectedBoolVal) (pure e)
+    then eval expA
+    else eval expB
+ifThenElse e _ _ = throwError (LangErr (TypeError ExpectedBoolVal) (pure e))
